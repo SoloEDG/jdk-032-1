@@ -299,3 +299,48 @@ kbd { padding: 2px 5px; border: 1px solid #536357; border-radius: 3px; backgroun
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* ===== 剖面系统 ===== */
+.profile-edge-line { fill: none; stroke-linecap: round; pointer-events: none; }
+.profile-edge-line.contact { stroke: rgba(230, 189, 104, .85); stroke-width: 1.4; }
+.profile-edge-line.support { stroke: rgba(120, 140, 132, .9); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.profile-edge-line.active { stroke: #ff8a5c; stroke-width: 3; filter: drop-shadow(0 0 4px rgba(255, 138, 92, .8)); }
+.com-mark { fill: #172522; stroke: #fff4dc; stroke-width: 1.2; }
+.contact-marker .contact-ring { fill: none; stroke: #ff7a4d; stroke-width: 2; }
+.contact-marker .contact-ring.dual { stroke: #ffd166; stroke-width: 1.6; stroke-dasharray: 2 2; }
+
+.profile-panel { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.profile-preview { background: var(--field); border: 1px solid var(--rule-soft); border-radius: 8px; padding: 8px; }
+.profile-preview svg { width: 100%; height: auto; }
+.profile-polygon { fill: rgba(234, 216, 181, .18); stroke: var(--cream); stroke-width: 1.5; }
+.profile-edge { cursor: pointer; stroke-width: 4; fill: none; transition: stroke-width .15s; }
+.profile-edge.contact { stroke: rgba(230, 189, 104, .9); }
+.profile-edge.support { stroke: rgba(120, 140, 132, .95); stroke-dasharray: 4 3; }
+.profile-edge:hover { stroke-width: 6; }
+.com-dot { fill: #ff8a5c; }
+.com-label { fill: var(--muted); font: 9px var(--mono); }
+.edge-legend { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); margin-top: 6px; }
+.edge-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+.edge-legend .dot.contact { background: var(--gold); }
+.edge-legend .dot.support { background: #788c84; }
+.segment-list { display: flex; flex-direction: column; gap: 6px; }
+.segment-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+.segment-row { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr) auto; gap: 4px; align-items: end; }
+.segment-row label { font-size: 9px; color: var(--quiet); display: flex; flex-direction: column; gap: 2px; }
+.segment-row input { width: 100%; padding: 4px; background: var(--field); border: 1px solid var(--rule-soft); border-radius: 4px; color: var(--ink); font: 11px var(--mono); }
+.seg-name { grid-row: 1; }
+.mini-button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font-size: 11px; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; cursor: pointer; }
+.mini-button.danger { color: var(--terracotta); }
+.profile-actions { display: flex; gap: 8px; }
+.profile-message { font-size: 11px; color: var(--mint); display: flex; gap: 5px; align-items: center; }
+.profile-message.warn { color: var(--terracotta); }
+.version-history { font-size: 11px; color: var(--muted); }
+.version-history summary { cursor: pointer; }
+.version-history ul { list-style: none; padding: 6px 0 0; display: flex; flex-direction: column; gap: 4px; }
+.version-history code { color: var(--gold); font-family: var(--mono); margin-right: 6px; }
+
+/* 回放接触事件 */
+.event-row.contact .event-icon { color: var(--gold); }
+.event-row .contact-detail { display: block; color: var(--gold); font-size: 10px; margin-top: 2px; }
+.event-row .contact-detail em { color: #ffd166; font-style: normal; }
+.event-flag.dual { background: rgba(255, 209, 102, .18); color: #ffd166; }

@@ -6,16 +6,17 @@ import { useMechanisms } from '@/features/mechanisms'
 import { useScene, clampToScene } from '@/features/scene'
 import { useSimulation } from '@/features/simulation'
 import { useReview } from '@/features/replay'
+import { ensureProfiles } from '@/features/profiles'
 
 const storageKey = 'chainline-jdk032-project-v1'
 
 function loadProject() {
   try {
     const saved = localStorage.getItem(storageKey)
-    if (!saved) return createDefaultDocument()
-    const parsed = JSON.parse(saved) as DominoDocument
-    if (!Array.isArray(parsed.pieces) || !Array.isArray(parsed.connections) || !parsed.scene) return createDefaultDocument()
-    return parsed
+    const base = saved ? (JSON.parse(saved) as DominoDocument) : createDefaultDocument()
+    if (!Array.isArray(base.pieces) || !Array.isArray(base.connections) || !base.scene) return createDefaultDocument()
+    // 旧档迁移：补齐剖面库与每个摆件的历史版本引用，但不改变任何旧形状
+    return ensureProfiles(base)
   } catch {
     return createDefaultDocument()
   }

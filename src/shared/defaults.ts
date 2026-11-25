@@ -1,4 +1,5 @@
 import type { DominoDocument, Piece } from './document'
+import { ensureProfiles } from '@/features/profiles/lib/catalog'
 
 const domino = (id: string, x: number, y: number, angle: number, label: string): Piece => ({
   id, kind: 'domino', x, y, angle, facing: 'east', label, height: 1.6, width: 0.42,
@@ -21,7 +22,7 @@ export function createDefaultDocument(): DominoDocument {
     domino('d10', 16.8, 4.05, 0, '13'),
     { ...domino('t1', 18.4, 2.3, 0, '终点 A'), kind: 'trigger', width: 0.7 },
   ]
-  return {
+  const base: DominoDocument = {
     id: 'chainline-starter',
     title: '逆风转角',
     revision: 1,
@@ -33,5 +34,9 @@ export function createDefaultDocument(): DominoDocument {
     ],
     scene: { gravity: 9.8, friction: 0.62, width: 21, height: 9, showGrid: true },
     startPieceId: 'd1',
+    profiles: [],
+    profileVersions: [],
   }
+  // 烘焙内置剖面并为每个摆件写入当时的剖面版本引用
+  return ensureProfiles(base)
 }

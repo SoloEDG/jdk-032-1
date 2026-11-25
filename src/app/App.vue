@@ -6,6 +6,7 @@ import { MechanismPanel } from '@/features/mechanisms'
 import { ScenePanel } from '@/features/scene'
 import { SimulationBar } from '@/features/simulation'
 import { ReplayPanel } from '@/features/replay'
+import { ProfilePanel } from '@/features/profiles'
 import { useWorkspace } from './useWorkspace'
 
 const {
@@ -57,6 +58,9 @@ const saveLabel = computed(() => saveState.value === 'saved' ? '已保存' : sav
 
       <aside class="right-rail">
         <ObjectInspector :piece="layout.selected.value" @rotate="layout.rotate" @remove="layout.remove" @update="layout.update" />
+        <div class="rail-divider"></div>
+        <ProfilePanel :document="document" :selected-piece-ids="layout.selectedId.value ? [layout.selectedId.value] : []"
+          @changed="() => {}" />
         <div class="rail-divider"></div>
         <ReplayPanel :run="simulation.run.value" :events="review.events.value" :time="review.time.value"
           :playing="review.playing.value" :current-event="review.currentEvent.value" :stale="simulation.stale.value"

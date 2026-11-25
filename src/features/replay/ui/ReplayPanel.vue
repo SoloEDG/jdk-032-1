@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle2, CircleStop, FastForward, Pause, Play, RotateCcw, SkipBack } from '@lucide/vue'
+import { AlertTriangle, CheckCircle2, CircleStop, FastForward, Pause, Play, RotateCcw, SkipBack, Zap } from '@lucide/vue'
 import type { SimulationEvent, SimulationRun } from '@/shared/document'
 import { formatSeconds } from '@/shared/time'
 
@@ -9,7 +9,8 @@ defineProps<{
 }>()
 const emit = defineEmits<{ toggle: []; seek: [number]; restart: []; event: [string] }>()
 const iconFor = (kind: SimulationEvent['kind']) => kind === 'interrupted' ? AlertTriangle
-  : kind === 'mechanism' ? FastForward : CheckCircle2
+  : kind === 'mechanism' ? FastForward
+    : kind === 'contact' ? Zap : CheckCircle2
 </script>
 
 <template>
@@ -37,12 +38,22 @@ const iconFor = (kind: SimulationEvent['kind']) => kind === 'interrupted' ? Aler
       <div class="event-list-heading"><span>事件轨迹</span><span>{{ events.length }} EVENTS</span></div>
       <ol class="event-list">
         <li v-for="event in events" :key="event.id">
-          <button class="event-row" :class="{ current: currentEvent?.id === event.id, interrupted: event.kind === 'interrupted' }"
+          <button class="event-row" :class="{ current: currentEvent?.id === event.id, interrupted: event.kind === 'interrupted', contact: event.kind === 'contact' }"
             :aria-current="currentEvent?.id === event.id ? 'step' : undefined" @click="emit('event', event.id)">
             <span class="event-time mono">{{ formatSeconds(event.time) }}</span>
             <span class="event-icon"><component :is="iconFor(event.kind)" :size="14" /></span>
-            <span class="event-copy"><strong>{{ run.events.find(item => item.id === event.id)?.pieceId === run.startPieceId ? '启动点' : event.detail.split(' · ')[0] }}</strong><small>{{ event.detail.split(' · ')[1] ?? event.pieceId }}</small></span>
+            <span class="event-copy">
+              <strong>{{ run.events.find(item => item.id === event.id)?.pieceId === run.startPieceId ? '启动点' : event.detail.split(' · ')[0] }}</strong>
+              <small>{{ event.detail.split(' · ')[1] ?? event.pieceId }}</small>
+              <small v-if="event.kind === 'contact' && event.contact" class="contact-detail">
+                源{{ event.contact.sourceEdge.role === 'support' ? '支架边' : '接触边' }} →
+                目标{{ event.contact.targetEdge.role === 'support' ? '支架边' : '接触边' }}
+                · 倾角 {{ event.contact.sourceAngleDeg.toFixed(1) }}°
+                <em v-if="event.contact.contactPointCount > 1"> · 双触点 ×{{ event.contact.contactPointCount }}</em>
+              </small>
+            </span>
             <span v-if="event.kind === 'interrupted'" class="event-flag">中断</span>
+            <span v-else-if="event.kind === 'contact' && event.contact?.contactPointCount! > 1" class="event-flag dual">双触点</span>
           </button>
         </li>
       </ol>

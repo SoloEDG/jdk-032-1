@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef, type Ref } from 'vue'
-import type { DominoDocument, SimulationRun } from '@/shared/document'
-import { propagate } from '../lib/propagate'
+import type { DominoDocument, ProfileVersion, SimulationRun } from '@/shared/document'
+import { propagateWithProfiles } from '@/features/profiles/lib/propagate'
+import { ensureProfiles, resolveVersion } from '@/features/profiles/lib/catalog'
 
 export function useSimulation(document: Ref<DominoDocument>) {
   const run = shallowRef<SimulationRun | null>(null)
@@ -14,8 +15,15 @@ export function useSimulation(document: Ref<DominoDocument>) {
     issue.value = ''
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     try {
-      const snapshot = structuredClone(document.value)
-      const result = propagate(snapshot)
+      // 迁移旧档；ensureProfiles 返回新对象，再序列化深拷贝以冻结运行时刻数据
+      const migrated = ensureProfiles(document.value)
+      const snapshot: DominoDocument = JSON.parse(JSON.stringify(migrated))
+      const result = propagateWithProfiles(snapshot)
+
+      // 只把被摆件实际引用的剖面版本存入快照：旧场次据此按当时形状解释
+      const referenced = new Set(snapshot.pieces.map(p => p.profileVersion).filter(Boolean) as string[])
+      const profileSnapshot: ProfileVersion[] = snapshot.profileVersions.filter(v => referenced.has(v.checksum))
+
       run.value = {
         id: crypto.randomUUID(),
         documentId: snapshot.id,
@@ -27,10 +35,20 @@ export function useSimulation(document: Ref<DominoDocument>) {
         interruptedPieceId: result.interruptedPieceId,
         interruptionReason: result.interruptionReason,
         duration: result.duration,
+        profileSnapshot,
+        piecesSnapshot: JSON.parse(JSON.stringify(snapshot.pieces)),
+        contacts: result.contacts,
       }
       if (result.status === 'empty') issue.value = '场景里没有可运行的触发点。'
-    } catch {
-      issue.value = '场景计算未能完成，请检查元件连接。'
+      // 预热解析，确保每个引用都能在快照中找到
+      for (const piece of snapshot.pieces) {
+        if (!resolveVersion(snapshot, piece) && piece.kind !== 'ramp') {
+          issue.value = '部分摆件缺少剖面版本，已按可解析部分运行。'
+        }
+      }
+    } catch (error) {
+      issue.value = '场景计算未能完成，请检查剖面与元件连接。'
+      console.error(error)
     } finally {
       busy.value = false
     }

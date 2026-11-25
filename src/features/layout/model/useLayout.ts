@@ -2,9 +2,19 @@ import { computed, ref, type Ref } from 'vue'
 import type { DominoDocument, Piece, PieceKind } from '@/shared/document'
 import { roundedPosition } from '../lib/geometry'
 import { stableId } from '@/shared/time'
+import { DEFAULT_PROFILE_ID, ensureProfiles, resolveDef } from '@/features/profiles'
 
 const names: Record<PieceKind, string> = {
   domino: '骨牌', ramp: '坡道', splitter: '分岔', trigger: '触发器',
+}
+
+function defaultProfileRef(document: DominoDocument): { profileId?: string; profileVersion?: string } {
+  const def = resolveDef(document, DEFAULT_PROFILE_ID)
+  if (!def) return {}
+  const checksum = [...document.profileVersions]
+    .reverse()
+    .find(v => v.profileId === DEFAULT_PROFILE_ID)?.checksum
+  return { profileId: def.id, profileVersion: checksum }
 }
 
 export function useLayout(document: Ref<DominoDocument>, changed: () => void) {
@@ -18,13 +28,15 @@ export function useLayout(document: Ref<DominoDocument>, changed: () => void) {
   function add(kind: PieceKind, x: number, y: number) {
     const id = stableId(kind.slice(0, 1))
     const position = roundedPosition({ x, y })
+    const ready = ensureProfiles(document.value)
+    const profile = kind === 'domino' || kind === 'splitter' ? defaultProfileRef(ready) : {}
     const piece: Piece = {
       id, kind, ...position, angle: 0, facing: 'east',
       label: names[kind], width: kind === 'ramp' ? 1.7 : kind === 'splitter' ? 0.72 : 0.42,
       height: kind === 'ramp' ? 0.48 : kind === 'trigger' ? 0.8 : 1.6,
-      fallThreshold: 0.8, friction: 0.55,
+      fallThreshold: 0.8, friction: 0.55, ...profile,
     }
-    document.value = { ...document.value, pieces: [...document.value.pieces, piece] }
+    document.value = { ...ready, pieces: [...ready.pieces, piece] }
     selectedId.value = id
     changed()
   }

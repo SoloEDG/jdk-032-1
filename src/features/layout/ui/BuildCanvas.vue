@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Crosshair, MousePointer2 } from '@lucide/vue'
-import type { DominoDocument, Piece, PieceKind, SimulationRun } from '@/shared/document'
+import type { ContactRecord, DominoDocument, Piece, PieceKind, ProfileVersion, SimulationRun } from '@/shared/document'
+import { resolveVersion } from '@/features/profiles'
 
 const props = defineProps<{
   document: DominoDocument; activeTool: PieceKind | null; selectedId: string | null
@@ -49,6 +50,14 @@ function boardClick(event: PointerEvent) {
 }
 function pxX(x: number) { return view.margin + x / props.document.scene.width * (view.width - view.margin * 2) }
 function pxY(y: number) { return view.margin + y / props.document.scene.height * (view.height - view.margin * 2) }
+/** 世界 1 米对应的屏幕像素（取 x、y 比例的较小者，保证轮廓不变形） */
+const meter = computed(() => Math.min(
+  (view.width - view.margin * 2) / props.document.scene.width,
+  (view.height - view.margin * 2) / props.document.scene.height,
+))
+/** 屏幕坐标 y 朝上：局部/世界 y 越大，屏幕 y 越小 */
+function localX(worldX: number, localX: number) { return meter.value * localX }
+function localY(localY: number) { return -meter.value * localY }
 function pieceColor(piece: Piece) {
   if (piece.id === failed.value) return '#e88b69'
   if (fallen.value.has(piece.id)) return '#89c5a5'
@@ -60,6 +69,36 @@ function pieceColor(piece: Piece) {
 function eventTime(pieceId: string) {
   const event = props.run?.events.find(item => item.pieceId === pieceId)
   return event ? event.time.toFixed(2) : ''
+}
+
+const versionCache = computed(() => {
+  const map = new Map<string, ProfileVersion | null>()
+  for (const piece of props.document.pieces) map.set(piece.id, resolveVersion(props.document, piece))
+  return map
+})
+function versionOf(piece: Piece) { return versionCache.value.get(piece.id) ?? null }
+function profilePath(piece: Piece, version: ProfileVersion) {
+  return version.polygon
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${localX(piece.x, p.x).toFixed(2)} ${localY(p.y).toFixed(2)}`)
+    .join(' ') + ' Z'
+}
+/** 当前回放聚焦的接触记录（用于高亮“先撞的是哪条边”） */
+const activeContacts = computed<ContactRecord[]>(() =>
+  props.run?.events.filter(e => e.kind === 'contact').map(e => e.contact!).filter(Boolean) ?? [])
+function edgeIsActive(piece: Piece, edgeIndex: number, side: 'source' | 'target') {
+  return activeContacts.value.some(record => {
+    const refVersion = versionOf(piece)
+    if (!refVersion) return false
+    const edge = side === 'source' ? record.sourceEdge : record.targetEdge
+    const ownerId = side === 'source' ? record.sourcePieceId : record.targetPieceId
+    if (ownerId !== piece.id) return false
+    return refVersion.edges[edgeIndex]?.a.x === edge.a.x && refVersion.edges[edgeIndex]?.a.y === edge.a.y
+  })
+}
+function contactPointsFor(piece: Piece) {
+  return activeContacts.value
+    .filter(r => r.sourcePieceId === piece.id || r.targetPieceId === piece.id)
+    .map(r => ({ x: pxX(r.point.x), y: pxY(r.point.y), dual: r.contactPointCount > 1 }))
 }
 </script>
 
@@ -99,17 +138,40 @@ function eventTime(pieceId: string) {
         :transform="`translate(${pxX(piece.x)} ${pxY(piece.y)}) rotate(${piece.angle})`"
         :tabindex="0" role="button" :aria-label="`${piece.label}，${piece.x.toFixed(1)}，${piece.y.toFixed(1)}`" :aria-pressed="selectedId === piece.id"
         @pointerdown="down($event, piece)" @keydown.enter.stop="emit('select', piece.id)" @keydown.space.stop.prevent="emit('select', piece.id)">
-        <ellipse v-if="piece.kind === 'domino'" cx="0" cy="7" rx="15" ry="8" class="piece-ground-shadow" />
-        <rect v-if="piece.kind === 'domino'" x="-9" y="-20" width="18" height="39" rx="4" :fill="pieceColor(piece)" class="domino-body" filter="url(#piece-shadow)" />
-        <path v-else-if="piece.kind === 'ramp'" d="M-24 10 L22 10 L22 -10 Z" :fill="pieceColor(piece)" class="ramp-body" filter="url(#piece-shadow)" />
-        <path v-else-if="piece.kind === 'splitter'" d="M0-13 L13 0 L0 13 L-13 0 Z" :fill="pieceColor(piece)" class="splitter-body" filter="url(#piece-shadow)" />
-        <circle v-else r="11" :fill="pieceColor(piece)" class="trigger-body" filter="url(#piece-shadow)" />
-        <line v-if="piece.kind === 'domino'" x1="0" y1="-15" x2="0" y2="14" class="domino-mark" />
+        <template v-if="piece.kind === 'ramp'">
+          <path d="M-24 10 L22 10 L22 -10 Z" :fill="pieceColor(piece)" class="ramp-body" filter="url(#piece-shadow)" />
+        </template>
+        <template v-else-if="piece.kind === 'splitter'">
+          <path d="M0-13 L13 0 L0 13 L-13 0 Z" :fill="pieceColor(piece)" class="splitter-body" filter="url(#piece-shadow)" />
+        </template>
+        <template v-else-if="piece.kind === 'trigger'">
+          <circle r="11" :fill="pieceColor(piece)" class="trigger-body" filter="url(#piece-shadow)" />
+        </template>
+        <template v-else-if="versionOf(piece)">
+          <ellipse cx="0" cy="7" :rx="meter * (versionOf(piece)!.bounds.maxX - versionOf(piece)!.bounds.minX) / 2" ry="7"
+            class="piece-ground-shadow" />
+          <path :d="profilePath(piece, versionOf(piece)!)" :fill="pieceColor(piece)" class="domino-body"
+            filter="url(#piece-shadow)" />
+          <!-- 边角色：接触边描亮色，支架边描暗色；回放命中边高亮 -->
+          <line v-for="(edge, i) in versionOf(piece)!.edges" :key="i"
+            :x1="localX(piece.x, edge.a.x)" :y1="localY(edge.a.y)"
+            :x2="localX(piece.x, edge.b.x)" :y2="localY(edge.b.y)"
+            :class="['profile-edge-line', edge.role, { active: edgeIsActive(piece, i, 'source') || edgeIsActive(piece, i, 'target') }]" />
+          <circle :cx="localX(piece.x, versionOf(piece)!.centerOfMass.x)" :cy="localY(versionOf(piece)!.centerOfMass.y)"
+            r="2.6" class="com-mark" />
+        </template>
         <circle v-if="piece.id === document.startPieceId" cy="-28" r="4" class="start-marker" />
         <circle v-if="piece.id === failed" cy="-34" r="7" class="failure-marker" />
         <text y="32" text-anchor="middle" class="piece-label">{{ piece.label }}</text>
         <text v-if="eventTime(piece.id)" y="44" text-anchor="middle" class="piece-time">{{ eventTime(piece.id) }}s</text>
         <rect v-if="selectedId === piece.id || focusPieceId === piece.id" x="-18" y="-28" width="36" height="55" rx="8" class="selection-ring" />
+      </g>
+
+      <!-- 接触点标记：回放时指出“哪一边先撞上、撞在哪一点”，双触点用双环 -->
+      <g v-for="(cp, i) in document.pieces.flatMap(p => contactPointsFor(p))" :key="`cp-${i}`" class="contact-marker"
+        pointer-events="none" :transform="`translate(${cp.x} ${cp.y})`">
+        <circle r="6" class="contact-ring" />
+        <circle v-if="cp.dual" r="10" class="contact-ring dual" />
       </g>
 
       <g v-if="focusPieceId" class="focus-reticle" pointer-events="none">
